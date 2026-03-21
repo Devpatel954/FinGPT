@@ -6,7 +6,6 @@ Falls back to regex pattern matching for speed on first-run.
 import re
 from typing import List
 
-from app.utils.model_loader import get_zeroshot_pipeline
 from app.utils.preprocess import clean_text
 
 CATEGORIES = ["Risk Factors", "M&A Signals", "Guidance Changes", "Regulatory Flags", "Positive Signals"]
@@ -84,19 +83,7 @@ def _zeroshot_categorise(phrases: List[str]) -> List[dict]:
 
 def extract_keywords(text: str, use_zeroshot: bool = False) -> dict:
     cleaned = clean_text(text)
-
-    if use_zeroshot:
-        # Extract candidate ngrams first, then classify
-        words = cleaned.split()
-        candidates = []
-        for n in (2, 3):
-            for i in range(len(words) - n + 1):
-                phrase = " ".join(words[i : i + n])
-                if not any(w.lower() in {"the", "a", "an", "and", "or", "in", "of", "to"} for w in phrase.split()):
-                    candidates.append(phrase)
-        keywords = _zeroshot_categorise(list(set(candidates))[:30])
-    else:
-        keywords = _fast_extract(cleaned)
+    keywords = _fast_extract(cleaned)
 
     # Group by category
     categories: dict = {cat: [] for cat in CATEGORIES}

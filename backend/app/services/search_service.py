@@ -11,6 +11,7 @@ from typing import List
 from app.utils.mock_data import get_all_articles
 from app.utils.model_loader import get_sentiment_pipeline
 
+
 # ── TF-IDF helpers ────────────────────────────────────────
 
 _STOP = {

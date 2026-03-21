@@ -3,7 +3,9 @@
  * Backend: http://localhost:8001
  */
 
-const BASE = 'http://localhost:8001'
+const BASE = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+  ? 'https://fingpt-api.onrender.com'   // ← replace with your actual Render URL
+  : 'http://localhost:8001'
 
 async function get(path) {
   const res = await fetch(`${BASE}${path}`)

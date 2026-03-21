@@ -1,50 +1,43 @@
 """
-Singleton model loader — loads HuggingFace pipelines once at startup.
-All services import from here to avoid redundant model loads.
+Model loader — uses VADER for lightweight, zero-download sentiment analysis.
+VADER is wrapped to mimic the HuggingFace pipeline interface so all services
+work without changes: pipe(text) → [{'label': str, 'score': float}]
 """
-import os
 import logging
-from functools import lru_cache
-
-from dotenv import load_dotenv
-
-load_dotenv()
 
 logger = logging.getLogger("fingpt.models")
 
-HF_TOKEN = os.getenv("HF_TOKEN")
+_vader_analyzer = None
 
-_sentiment_pipeline = None
-_zeroshot_pipeline = None
+
+def _make_vader_pipe():
+    """Build a VADER-backed callable that mimics HF pipeline output."""
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+    analyzer = SentimentIntensityAnalyzer()
+    logger.info("VADER SentimentIntensityAnalyzer ready.")
+
+    def _pipe(text: str):
+        vs = analyzer.polarity_scores(str(text)[:512])
+        compound = vs["compound"]
+        if compound >= 0.05:
+            label, conf = "positive", max(vs["pos"], 0.55)
+        elif compound <= -0.05:
+            label, conf = "negative", max(vs["neg"], 0.55)
+        else:
+            label, conf = "neutral", max(vs["neu"], 0.55)
+        return [{"label": label, "score": round(min(conf, 0.99), 4)}]
+
+    return _pipe
 
 
 def get_sentiment_pipeline():
-    """Return cached FinBERT sentiment pipeline."""
-    global _sentiment_pipeline
-    if _sentiment_pipeline is None:
-        logger.info("Loading FinBERT (ProsusAI/finbert)...")
-        from transformers import pipeline
-        _sentiment_pipeline = pipeline(
-            "sentiment-analysis",
-            model="ProsusAI/finbert",
-            token=HF_TOKEN,
-            truncation=True,
-            max_length=512,
-        )
-        logger.info("FinBERT loaded.")
-    return _sentiment_pipeline
+    """Return cached VADER pipeline (same interface as HF pipeline)."""
+    global _vader_analyzer
+    if _vader_analyzer is None:
+        _vader_analyzer = _make_vader_pipe()
+    return _vader_analyzer
 
 
 def get_zeroshot_pipeline():
-    """Return cached zero-shot classification pipeline."""
-    global _zeroshot_pipeline
-    if _zeroshot_pipeline is None:
-        logger.info("Loading zero-shot pipeline (facebook/bart-large-mnli)...")
-        from transformers import pipeline
-        _zeroshot_pipeline = pipeline(
-            "zero-shot-classification",
-            model="facebook/bart-large-mnli",
-            token=HF_TOKEN,
-        )
-        logger.info("Zero-shot pipeline loaded.")
-    return _zeroshot_pipeline
+    """Stub — zero-shot model removed; keyword_service uses rule-based extraction."""
+    raise RuntimeError("Zero-shot pipeline removed. Use rule-based extraction instead.")
