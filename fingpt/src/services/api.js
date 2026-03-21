@@ -4,7 +4,7 @@
  */
 
 const BASE = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-  ? 'https://fingpt-api.onrender.com'   // ← replace with your actual Render URL
+  ? 'https://fingpt-1-d9xv.onrender.com'
   : 'http://localhost:8001'
 
 async function get(path) {
