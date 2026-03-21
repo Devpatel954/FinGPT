@@ -1,5 +1,4 @@
 import logging
-import os
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -8,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 from app.routes import alerts, earnings, keywords, prediction, search, sentiment
-from app.utils.model_loader import get_sentiment_pipeline, get_zeroshot_pipeline
+from app.utils.model_loader import get_sentiment_pipeline
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,6 +28,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
+        "https://fin-gpt-murex.vercel.app",  # Vercel prod
+        "https://*.vercel.app",               # Vercel preview URLs
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -47,15 +48,10 @@ app.include_router(alerts.router)
 # ── Startup ───────────────────────────────────────────────
 @app.on_event("startup")
 async def preload_models():
-    """Warm up model pipelines so the first request is not slow."""
-    logger.info("Pre-loading FinBERT sentiment pipeline …")
+    """Warm up VADER on startup so the first request is instant."""
+    logger.info("Pre-loading VADER sentiment analyzer …")
     get_sentiment_pipeline()
-    logger.info("FinBERT loaded.")
-    # Zero-shot is heavy — only pre-load if explicitly enabled
-    if os.getenv("PRELOAD_ZEROSHOT", "false").lower() == "true":
-        logger.info("Pre-loading zero-shot pipeline …")
-        get_zeroshot_pipeline()
-        logger.info("Zero-shot pipeline loaded.")
+    logger.info("VADER ready.")
 
 
 # ── Health check ──────────────────────────────────────────
