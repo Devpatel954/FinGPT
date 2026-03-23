@@ -228,7 +228,6 @@ def _train():
             max_iter=1000,
             class_weight="balanced",
             solver="lbfgs",
-            multi_class="multinomial",
         )),
     ])
     model.fit(texts, labels)
