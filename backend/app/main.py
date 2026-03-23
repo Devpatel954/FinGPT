@@ -48,10 +48,10 @@ app.include_router(alerts.router)
 # ── Startup ───────────────────────────────────────────────
 @app.on_event("startup")
 async def preload_models():
-    """Warm up VADER on startup so the first request is instant."""
-    logger.info("Pre-loading VADER sentiment analyzer …")
+    """Train and cache the ML sentiment model on startup so the first request is instant."""
+    logger.info("Pre-loading Financial Sentiment ML model (TF-IDF + Logistic Regression) …")
     get_sentiment_pipeline()
-    logger.info("VADER ready.")
+    logger.info("Financial Sentiment ML model ready.")
 
 
 # ── Health check ──────────────────────────────────────────

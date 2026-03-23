@@ -1,9 +1,11 @@
 """
 Prediction service — aggregates sentiment trends and simulates price correlation.
+Uses pandas for EMA smoothing and correlation, numpy for numerical ops.
 """
-import math
 import random
 from datetime import datetime, timedelta
+
+import pandas as pd
 
 from app.utils.model_loader import get_sentiment_pipeline
 from app.utils.preprocess import clean_text, normalise_score
@@ -50,20 +52,29 @@ def predict_ticker(ticker: str, range_str: str) -> dict:
     if not articles:
         articles = get_all_articles()[:8]
 
-    # Get sentiment scores for available articles
+    # Get sentiment scores for available articles via ML model
     raw_scores = []
     for art in articles:
         text = clean_text(art["headline"] + ". " + art["content"])[:512]
         out = pipe(text)[0]
         raw_scores.append(normalise_score(out["label"], out["score"]))
 
-    # Fill sentiment trend to `days` length using cycling + small noise
-    sentiment_trend = []
-    for i in range(days):
-        base_val = raw_scores[i % len(raw_scores)] if raw_scores else 0.0
-        sentiment_trend.append(round(base_val + random.gauss(0, 0.05), 3))
+    # Cycle article scores across `days`, add small Gaussian noise
+    base_trend = [
+        (raw_scores[i % len(raw_scores)] if raw_scores else 0.0) + random.gauss(0, 0.05)
+        for i in range(days)
+    ]
+    # EMA(span=3) smooths noise while preserving trend direction
+    sentiment_trend = (
+        pd.Series(base_trend)
+        .ewm(span=3, adjust=False)
+        .mean()
+        .clip(-1.0, 1.0)
+        .round(3)
+        .tolist()
+    )
 
-    avg_sentiment = round(sum(sentiment_trend) / len(sentiment_trend), 4)
+    avg_sentiment = round(float(pd.Series(sentiment_trend).mean()), 4)
 
     # Determine direction
     if avg_sentiment > 0.15:
@@ -84,21 +95,15 @@ def predict_ticker(ticker: str, range_str: str) -> dict:
 
     confidence = round(min(0.95, 0.50 + abs(avg_sentiment) * 1.5), 3)
 
-    # Pearson-like correlation between price returns and sentiment
+    # Pearson correlation between price returns and sentiment (via pandas)
     price_series = _generate_price_series(base, sentiment_trend, days)
-    returns = [
-        (price_series[i]["price"] - price_series[i - 1]["price"]) / price_series[i - 1]["price"]
-        for i in range(1, len(price_series))
-    ]
-    sent_sub = sentiment_trend[1:]
-    if returns and sent_sub:
-        n = len(returns)
-        mean_r = sum(returns) / n
-        mean_s = sum(sent_sub) / n
-        cov = sum((r - mean_r) * (s - mean_s) for r, s in zip(returns, sent_sub)) / n
-        std_r = (sum((r - mean_r) ** 2 for r in returns) / n) ** 0.5 or 0.001
-        std_s = (sum((s - mean_s) ** 2 for s in sent_sub) / n) ** 0.5 or 0.001
-        correlation = round(cov / (std_r * std_s), 3)
+    prices = pd.Series([p["price"] for p in price_series])
+    returns_s = prices.pct_change().dropna()
+    sent_s = pd.Series(sentiment_trend[1 : len(returns_s) + 1])
+    if len(returns_s) >= 3 and len(sent_s) >= 3:
+        correlation = round(float(returns_s.corr(sent_s)), 3)
+        if pd.isna(correlation):
+            correlation = 0.0
     else:
         correlation = 0.0
 
