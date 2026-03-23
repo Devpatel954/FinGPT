@@ -6,8 +6,8 @@ import {
   Tooltip, ResponsiveContainer
 } from 'recharts'
 import { stockDetails, stockTimelineData, newsFeed, trendingStocks } from '../data/appData.js'
+import { getSentiment } from '../services/api.js'
 
-const API_BASE = 'http://localhost:8001'
 const AVAILABLE = Object.keys(stockDetails)
 
 function sentimentClass(score) {
@@ -67,9 +67,7 @@ export default function AnalyzePage() {
     setApiData(null)
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/sentiment/?ticker=${encodeURIComponent(sym)}&mode=realtime`)
-      if (!res.ok) throw new Error(`API error ${res.status}`)
-      const data = await res.json()
+      const data = await getSentiment(sym, 'realtime')
       setApiData(data)
     } catch (e) {
       setError(e.message || 'Failed to connect to analysis server.')
